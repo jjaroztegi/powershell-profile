@@ -492,6 +492,12 @@ function tail {
     Get-Content -Path $Path -Tail $n -Wait:$f
 }
 
+# Functions take precedence over executables, so these fallbacks would hide installed native tools
+# (microsoft/coreutils, Git for Windows usr\bin, ...) and break usage such as `... | head -n 5`.
+foreach ($nativeCommand in @(Get-Command -Name df, grep, head, sed, tail, touch, uptime -CommandType Application -ErrorAction SilentlyContinue)) {
+    Remove-Item -Path ('Function:\' + [IO.Path]::GetFileNameWithoutExtension($nativeCommand.Name)) -ErrorAction SilentlyContinue
+}
+
 function nf {
     param([Parameter(Mandatory)][string]$Name)
     New-Item -ItemType File -Path . -Name $Name -Force | Out-Null

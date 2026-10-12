@@ -30,6 +30,8 @@ After installing, restart Windows Terminal and set your PowerShell font to `Cask
 - Process/system helpers: `pgrep`, `pkill`, `k9`, `uptime`, `windev`, `winutil`, `winutildev`.
 - Navigation/listing helpers: `g`, `docs`, `la`, `ll`.
 
+`df`, `grep`, `head`, `sed`, `tail`, `touch`, and `uptime` are PowerShell fallbacks: they are skipped when a native command with the same name is on `PATH` (for example from microsoft/coreutils or Git for Windows).
+
 Run `Show-Help` in PowerShell to see the full command list.
 
 ## Theme
