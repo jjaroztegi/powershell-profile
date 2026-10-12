@@ -231,6 +231,8 @@ function Clear-Cache {
     [CmdletBinding(SupportsShouldProcess)]
     param(
         # Files modified more recently are kept, so running installers and apps keep their working files.
+        # A negative value would put the cutoff in the future and delete everything.
+        [ValidateRange(0, 3650)]
         [int]$OlderThanDays = 7
     )
 
