@@ -229,24 +229,55 @@ function Update-PowerShell {
 
 function Clear-Cache {
     [CmdletBinding(SupportsShouldProcess)]
-    param()
+    param(
+        # Files modified more recently are kept, so running installers and apps keep their working files.
+        [int]$OlderThanDays = 7
+    )
 
     if (Get-Command -Name 'Clear-Cache_Override' -ErrorAction SilentlyContinue) {
         Clear-Cache_Override @PSBoundParameters
         return
     }
 
-    $paths = @(
-        "$env:SystemRoot\Prefetch\*",
-        "$env:SystemRoot\Temp\*",
-        "$env:TEMP\*",
-        "$env:LOCALAPPDATA\Microsoft\Windows\INetCache\*"
+    $cutoff = (Get-Date).AddDays(-$OlderThanDays)
+    $roots = @(
+        "$env:SystemRoot\Temp",
+        $env:TEMP,
+        "$env:LOCALAPPDATA\Microsoft\Windows\INetCache"
     )
 
-    foreach ($path in $paths) {
-        if ($PSCmdlet.ShouldProcess($path, 'Remove cached files')) {
-            Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+    $freed = 0
+    foreach ($root in $roots | Select-Object -Unique) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            continue
         }
+
+        # Reparse points are skipped so links never lead outside the cache folder.
+        $files = @(Get-ChildItem -LiteralPath $root -Recurse -Force -File -Attributes !ReparsePoint -ErrorAction SilentlyContinue |
+            Where-Object LastWriteTime -lt $cutoff)
+        if (-not $PSCmdlet.ShouldProcess($root, "Remove $($files.Count) files older than $OlderThanDays days")) {
+            continue
+        }
+
+        foreach ($file in $files) {
+            try {
+                Remove-Item -LiteralPath $file.FullName -Force -ErrorAction Stop
+                $freed += $file.Length
+            } catch {
+                Write-Verbose "Skipping in-use file: $($file.FullName)"
+            }
+        }
+
+        # Deepest first, so parents are empty by the time they are checked.
+        Get-ChildItem -LiteralPath $root -Recurse -Force -Directory -Attributes !ReparsePoint -ErrorAction SilentlyContinue |
+            Where-Object LastWriteTime -lt $cutoff |
+            Sort-Object { $_.FullName.Length } -Descending |
+            Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1) } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+
+    if (-not $WhatIfPreference) {
+        Write-Host ('Freed {0:N1} MB.' -f ($freed / 1MB)) -ForegroundColor Green
     }
 }
 
